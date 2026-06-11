@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>バスロケ確認</title>
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.x/dist/protobuf.min.js"></script>
+</head>
+<body>
+    <h1>バスの位置情報</h1>
+    <pre id="output">読み込み中...</pre>
+
+    <script>
+    // プロト定義ファイルを直接指定
+    const PROTO_PATH = './gtfs-realtime.proto'; 
+    const FEED_URL = 'https://corsproxy.io/?' + encodeURIComponent('http://opendata.sagabus.info/vehicle.pb');
+
+    async function loadBusData() {
+        try {
+            // プロト定義ファイルを読み込む
+            const root = await protobuf.load(PROTO_PATH);
+            const FeedMessage = root.lookupType("transit_realtime.FeedMessage");
+
+            const response = await fetch(FEED_URL);
+            if (!response.ok) throw new Error('データ取得失敗');
+            
+            const buffer = await response.arrayBuffer();
+            const message = FeedMessage.decode(new Uint8Array(buffer));
+            
+            // 結果を整形して表示
+            document.getElementById('output').textContent = JSON.stringify(message, null, 2);
+        } catch (err) {
+            document.getElementById('output').textContent = 'エラー: ' + err.message;
+            console.error(err);
+        }
+    }
+    window.onload = loadBusData;
+</script>
+</body>
+</html>
