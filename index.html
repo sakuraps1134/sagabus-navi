@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>佐賀バスロケ</title>
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.x/dist/protobuf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <h1>バスの位置情報（系統1番のみ）</h1>
+    <div id="map" style="height: 600px; width: 100%;"></div>
+    <pre id="output"></pre>
+
+    <script>
+        const PROTO_PATH = '/gtfs-realtime.proto';
+        const FEED_URL = 'https://sagabus-proxy.sakuraps1134.workers.dev/';
+        const CSV_URL = 'https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/vehicle.csv';
+        
+        let vehicleMap = {}; // ID変換用テーブル
+        let markers = [];    // マーカー管理用
+        const map = L.map('map').setView([33.2635, 130.3016], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+        // バスのアイコン設定
+        const busIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448334.png', // バスアイコン
+            iconSize: [32, 32]
+        });
+
+        // CSV読み込み
+        // CSV読み込み処理の修正
+        async function loadVehicleCSV() {
+            const res = await fetch(CSV_URL);
+            const text = await res.text();
+            
+            // header: false に設定し、自分でインデックスを指定して取得します
+            Papa.parse(text, { 
+                header: false, 
+                skipEmptyLines: true, // 空行をスキップ
+                complete: (results) => {
+                    results.data.forEach(row => {
+                        // row[0] はID, row[1] は車両名
+                        const rawId = row[0] ? row[0].toString().trim() : "";
+                        const vehicleName = row[1] ? row[1].trim() : "不明";
+                        
+                        if (rawId) {
+                            // 先頭の連続する0を除去したIDをキーにする
+                            const cleanId = rawId.replace(/^0+/, '');
+                            vehicleMap[cleanId] = vehicleName;
+                        }
+                    });
+                    console.log("読み込んだ車両マップ:", vehicleMap);
+                }
+            });
+        }
+
+        async function loadBusData() {
+            try {
+                const root = await protobuf.load(PROTO_PATH);
+                const FeedMessage = root.lookupType("transit_realtime.FeedMessage");
+                const res = await fetch(FEED_URL);
+                const buffer = await res.arrayBuffer();
+                const message = FeedMessage.decode(new Uint8Array(buffer));
+
+                // 古いマーカーを削除
+                markers.forEach(m => map.removeLayer(m));
+                markers = [];
+
+                message.entity.forEach(item => {
+                    if (item.vehicle && item.vehicle.trip && item.vehicle.trip.tripId.startsWith("1")) {
+                        const lat = item.vehicle.position.latitude;
+                        const lon = item.vehicle.position.longitude;
+                        const rawId = item.vehicle.vehicle.id.replace(/^0+/, '');
+                        const busName = vehicleMap[rawId] || "不明な車両";
+
+                        const marker = L.marker([lat, lon], { icon: busIcon })
+                            .addTo(map)
+                            .bindPopup(`車両名: ${busName}<br>ID: ${rawId}`);
+                        markers.push(marker);
+                    }
+                });
+                document.getElementById('output').textContent = "最終更新: " + new Date().toLocaleTimeString();
+            } catch (err) { console.error(err); }
+        }
+
+        // 初期実行
+        loadVehicleCSV().then(() => {
+            loadBusData();
+            setInterval(loadBusData, 10000); // 10秒おき
+        });
+    </script>
+</body>
+</html>
