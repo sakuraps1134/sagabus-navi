@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>佐賀バスロケ</title>
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.x/dist/protobuf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <h1>バスの位置情報（系統1番のみ）</h1>
+    <div id="map" style="height: 600px; width: 100%;"></div>
+    <pre id="output"></pre>
+
+    <script>
+        const PROTO_PATH = '/gtfs-realtime.proto';
+        const FEED_URL = 'https://sagabus-proxy.sakuraps1134.workers.dev/';
+        const CSV_URL = 'https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/vehicle.csv';
+
+        // グローバル管理変数
+        let map = L.map('map').setView([33.2635, 130.3016], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+        let vehicleMap = {};
+        let vehicleHistory = {};
+        let markers = [];
+        let polylines = {};
+
+        const busIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448334.png',
+            iconSize: [32, 32]
+        });
+
+        // 1. CSV読み込み（文字コードShift_JIS対応）
+        async function loadVehicleCSV() {
+            const res = await fetch(CSV_URL);
+            const blob = await res.blob();
+            const reader = new FileReader();
+            return new Promise((resolve) => {
+                reader.onload = (e) => {
+                    Papa.parse(e.target.result, {
+                        header: false, skipEmptyLines: true, complete: (results) => {
+                            results.data.forEach(row => {
+                                const cleanId = row[0] ? row[0].toString().trim().replace(/^0+/, '') : "";
+                                if (cleanId) vehicleMap[cleanId] = row[1] ? row[1].trim() : "";
+                            });
+                            resolve();
+                        }
+                    });
+                };
+                reader.readAsText(blob, 'Shift_JIS');
+            });
+        }
+
+        // 2. メインデータ更新処理
+        async function loadBusData() {
+            try {
+                const root = await protobuf.load(PROTO_PATH);
+                const FeedMessage = root.lookupType("transit_realtime.FeedMessage");
+                const res = await fetch(FEED_URL);
+                const buffer = await res.arrayBuffer();
+                const message = FeedMessage.decode(new Uint8Array(buffer));
+
+                // 既存の要素をリセット
+                markers.forEach(m => map.removeLayer(m));
+                markers = [];
+
+                message.entity.forEach(item => {
+                    if (item.vehicle && item.vehicle.trip && item.vehicle.trip.tripId.startsWith("1")) {
+                        const lat = item.vehicle.position.latitude;
+                        const lon = item.vehicle.position.longitude;
+                        const rawId = item.vehicle.vehicle.id.replace(/^0+/, '');
+                        const busName = vehicleMap[rawId] || "";
+
+                        // --- 軌跡更新 ---
+                        if (!vehicleHistory[rawId]) vehicleHistory[rawId] = [];
+                        vehicleHistory[rawId].push([lat, lon]);
+                        if (vehicleHistory[rawId].length > 3) vehicleHistory[rawId].shift();
+
+                        if (polylines[rawId]) map.removeLayer(polylines[rawId]);
+                        polylines[rawId] = L.polyline(vehicleHistory[rawId], { color: 'blue', weight: 4 }).addTo(map);
+
+                        // --- マーカー描画 ---
+                        const marker = L.marker([lat, lon], { icon: busIcon })
+                            .addTo(map)
+                            .bindPopup(busName ? `車両名: ${busName}` : `車両ID: ${rawId}`);
+                        markers.push(marker);
+                    }
+                });
+                document.getElementById('output').textContent = "最終更新: " + new Date().toLocaleTimeString();
+            } catch (err) { console.error(err); }
+        }
+
+        // 初期化実行
+        loadVehicleCSV().then(() => {
+            loadBusData();
+            setInterval(loadBusData, 10000);
+        });
+    </script>
+</body>
+</html>
