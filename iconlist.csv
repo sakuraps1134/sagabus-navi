@@ -1,0 +1,11 @@
+type,name,URL,vehiclelist
+1,新J中型,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/shinJ.png,"{831,832,833,836,837,838,853,854,855,856,860,861,862,863,865,866,867,868,870,871,872,875,876,877,880,881,882,883}"
+2,ポンチョ,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/poncho.png,"{115,116,117,118}"
+3,旧J大型,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/kyuJoogata.png,"{857,858,873,878,885}"
+4,旧J中型,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/kyuuJ.png,"{780,781,782,783,785,786,787,788,800,801,803,805,806,807,811,812,813,815,816,817,820,821,822,825,826,827}"
+5,西工,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/nishiko.png,"{771,823,851,852}"
+6,エアロミディ,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/midhi.png,"{775,776}"
+7,復刻塗装,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/835.png,{835}
+8,エアロバス,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/aerobus.png,{808}
+9,エアロエース,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/aerobus.png,{850}
+10,セレガ/ガーラ,https://raw.githubusercontent.com/sakuraps1134/sagabus-navi/main/aerobus.png,"{810,818,830}"
